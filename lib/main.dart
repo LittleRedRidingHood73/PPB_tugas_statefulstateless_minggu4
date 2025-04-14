@@ -1,12 +1,13 @@
 import 'dart:ffi';
 
+import 'package:firstproject/models/property.dart';
+import 'package:firstproject/services/database_service.dart';
 import 'package:flutter/material.dart';
-import 'quote.dart';
-import 'quote-card.dart';
 import 'traslucent-box.dart';
 import 'property.dart';
 
-void main() {
+void main() async {
+  await _setup();
   runApp(MaterialApp(
     home: Scaffold(
       appBar: AppBar(
@@ -41,15 +42,22 @@ void main() {
             ) /* add child content here */,
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.redAccent,
-        onPressed: () {},
-        child: Icon(
-            Icons.add
-        ),
-      ), // FloatingActionButton
+      // floatingActionButton: FloatingActionButton(
+      //   backgroundColor: Colors.redAccent,
+      //   onPressed: () {
+      //     // gimana cara manggil _addProperty()
+      //   },
+      //   child: Icon(
+      //       Icons.add
+      //   ),
+      // ), // FloatingActionButton
     ), // Scaffold
   ));
+}
+
+Future<void> _setup() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await DatabaseService.setup();
 }
 
 class PropertyList extends StatefulWidget {
@@ -58,11 +66,26 @@ class PropertyList extends StatefulWidget {
 }
 
 class _PropertyListState extends State<PropertyList> {
-  List<Property> properties = [
-    Property(title: 'Beautiful beach house', address: 'San Antonio 1337', price: 1000000, image: "assets/1.jpg"),
-    Property(title: 'Calm lakeside manor', address: 'Kejawan Putih 1277', price: 1000000, image: "assets/2.jpeg"),
-    Property(title: 'Big white mansion', address: 'Jalan Teknik Kimia 8876', price: 1000000, image: "assets/3.jpg"),
-  ];
+  List<MyProperty> properties = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProperties();
+  }
+
+  void _loadProperties() async {
+    final list = await DatabaseService.getProperties(); // from your DB service
+    setState(() {
+      properties = list;
+    });
+  }
+
+  TextEditingController titleController = TextEditingController();
+  TextEditingController addressController = TextEditingController();
+  TextEditingController priceController = TextEditingController();
+  TextEditingController imageController = TextEditingController();
+
 
   void _addProperty() {
     showDialog(
@@ -79,31 +102,44 @@ class _PropertyListState extends State<PropertyList> {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
+                controller: titleController,
                 decoration: InputDecoration(labelText: "Title"),
-                onChanged: (value) => title = value,
+                // onChanged: (value) => title = value,
               ),
               TextField(
+                controller: addressController,
                 decoration: InputDecoration(labelText: "Address"),
-                onChanged: (value) => address = value,
+                // onChanged: (value) => address = value,
               ),
               TextField(
+                controller: priceController,
                 decoration: InputDecoration(labelText: "Price"),
                 keyboardType: TextInputType.number,
-                onChanged: (value) => price = int.tryParse(value) ?? 0,
+                // onChanged: (value) => price = int.tryParse(value) ?? 0,
               ),
               TextField(
+                controller: imageController,
                 decoration: InputDecoration(labelText: "Image Path"),
-                onChanged: (value) => image = value,
+                // onChanged: (value) => image = value,
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                setState(() {
-                  properties.add(Property(title: title, address: address, price: price, image: image));
-                });
-                Navigator.pop(context);
+              onPressed: () async {
+                if (titleController.text.isNotEmpty && addressController.text.isNotEmpty && priceController.text.isNotEmpty && imageController.text.isNotEmpty) {
+                  await DatabaseService.addProperty(MyProperty()
+                    ..title = titleController.text
+                    ..address = addressController.text
+                    ..price = int.tryParse(priceController.text) ?? 0
+                    ..image = imageController.text);
+                  titleController.text = '';
+                  addressController.text = '';
+                  priceController.text = '';
+                  imageController.text = '';
+                  Navigator.pop(context);
+                  _loadProperties();
+                }
               },
               child: Text("Add"),
             ),
@@ -117,10 +153,10 @@ class _PropertyListState extends State<PropertyList> {
     showDialog(
       context: context,
       builder: (context) {
-        String title = properties[index].title;
-        String address = properties[index].address;
+        String title = properties[index].title ?? '';
+        String address = properties[index].address ?? '';
         int price = properties[index].price;
-        String image = properties[index].image;
+        String image = properties[index].image ?? '';
 
         return AlertDialog(
           title: Text("Edit Property"),
@@ -152,11 +188,18 @@ class _PropertyListState extends State<PropertyList> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                setState(() {
-                  properties[index] = Property(title: title, address: address, price: price, image: image);
-                });
+              onPressed: () async {
+                MyProperty prop = properties[index];
+                prop
+                  ..title = title
+                  ..address = address
+                  ..price = price
+                  ..image = image
+                  ..updateDateTime = DateTime.now();
+
+                await DatabaseService.updateProperty(prop);
                 Navigator.pop(context);
+                _loadProperties();
               },
               child: Text("Save"),
             ),
@@ -178,14 +221,15 @@ class _PropertyListState extends State<PropertyList> {
         Column(
           children: properties.asMap().entries.map((entry) {
             int index = entry.key;
-            Property property = entry.value;
+            MyProperty property = entry.value;
             return TranslucentCard(
-              title: property.title,
+              title: property.title ?? '',
               price: property.price,
-              imageURI: property.image,
+              imageURI: property.image ?? '',
               delete: () {
-                setState(() {
-                  properties.removeAt(index);
+                setState(() async {
+                  await DatabaseService.deleteProperty(properties[index].id);
+                  _loadProperties();
                 });
               },
               edit: () => _editProperty(index), // Add edit functionality
