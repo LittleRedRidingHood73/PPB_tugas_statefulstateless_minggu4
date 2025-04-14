@@ -23,6 +23,10 @@ dependencies:
   isar_generator: ^3.1.0+1
   build_runner: any
 ```
+Kemudian saya jalankan perintah berikut di terminal untuk menginstal paket yang dibutuhkan:
 
+```bash
+flutter pub get
+```
 
 
